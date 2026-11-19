@@ -5,12 +5,21 @@ A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML
 **Live demo:** https://ume5hv.github.io/kanban/
 **DC superhero version:** https://ume5hv.github.io/kanban/dc.html
 **DevOps version:** https://ume5hv.github.io/kanban/devops.html
+**Liquid glass version:** https://ume5hv.github.io/kanban/ios.html
 
 ## Screenshots
 
 | Original (`index.html`) | DC superhero redesign (`dc.html`) |
 |---|---|
 | ![IT PMO Kanban board, original corporate blue design](docs/screenshot.png) | ![Hall of Justice Board, DC superhero themed redesign](docs/screenshot-dc-live.png) |
+
+### Liquid glass redesign (`ios.html`)
+
+| Light | Dark |
+|---|---|
+| ![IT PMO Glass, iOS-inspired liquid glass design in light mode](docs/screenshot-ios.png) | ![IT PMO Glass in dark mode](docs/screenshot-ios-dark.png) |
+
+An iOS-inspired design with a slowly drifting pastel wallpaper and frosted-glass panels. It has a pill navigation bar with a large title, a floating dock that shows the live summary, spring-eased card animations, a bottom-sheet form and iOS-style notification banners. Light and dark modes follow the device setting, and it respects reduced motion and reduced transparency. It uses no Apple logos or assets. The screenshots were taken in headless Brave, which adds its own small assistant button in the bottom-right corner; that button is not part of the page.
 
 ### DevOps redesign (`devops.html`)
 
