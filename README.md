@@ -1,0 +1,38 @@
+# IT PMO Kanban Board
+
+A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML, CSS and JavaScript. No framework, no build step and no external resources.
+
+**Live demo:** https://ume5hv.github.io/kanban/
+
+## Features
+
+- Four columns: Backlog, In Progress, Blocked and Done.
+- Drag and drop between columns, plus a keyboard-accessible "Move ▸" select on every card.
+- Priority-coloured card borders, an Overdue badge and an inline "Delete? Yes / No" confirmation.
+- Add Task form with inline validation, task IDs in the format `UOB-ITPM-####`, an optimistic add and a success toast.
+- Filters by project, assignee and priority, and a live summary of totals, status counts and overdue tasks.
+- Eight seeded demo tasks.
+
+## Run it
+
+Open `index.html` in a browser, or serve the folder:
+
+```bash
+python3 -m http.server 8765
+```
+
+Then open http://localhost:8765/.
+
+## Configuration
+
+Set `FORMSUBMIT_ENDPOINT` near the top of the script in `index.html` to your own address, for example `https://formsubmit.co/ajax/you@example.com`. FormSubmit asks you to confirm the address by email the first time a task is added. Until it is set, adding a task still works and shows the warning "Card added locally — email notification failed".
+
+## Known limits
+
+- Data lives in memory only, so a refresh resets the board to the demo tasks. Real persistence needs a backend or storage layer.
+- The page makes one network call: the FormSubmit request when a task is added.
+- This is a demo with a neutral "IT PMO" wordmark. It uses no real bank logo or trademarks.
+
+## Deployment
+
+A GitHub Actions workflow (`.github/workflows/main.yml`) publishes `index.html` to GitHub Pages on every push to `main`.
