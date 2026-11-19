@@ -24,6 +24,12 @@ The DC redesign keeps all behaviour from the original. Only the styling, the wor
 
 ![IT PMO Kanban board](docs/screenshot.png)
 
+### Hooks (meeting reminder and IT assistant)
+
+After 10 seconds on the page the meeting reminder dialog appears, and the IT assistant avatar sits at the bottom right. Captured with Playwright MCP.
+
+![Meeting reminder hook dialog and IT assistant avatar](docs/screenshot-hook.png)
+
 ## Features
 
 - Four columns: Backlog, In Progress, Blocked and Done.
