@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IT PMO – Project Board</title>
+<style>
+/* ============ Design tokens ============ */
+:root {
+  --blue-900: #0b2545;
+  --blue-700: #13478a;
+  --blue-600: #1a5cb0;
+  --blue-100: #dce9f8;
+  --blue-50: #f1f6fc;
+  --ink: #1b2430;
+  --muted: #5a6778;
+  --line: #d3dce8;
+  --surface: #ffffff;
+  --bg: #eaf0f7;
+  --red: #c62828;
+  --amber: #e08a00;
+  --blue: #1e6fd9;
+  --grey: #8794a5;
+  --green: #2e7d32;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --radius: 8px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); font-size: 14px; line-height: 1.4; }
+:focus-visible { outline: 3px solid #ffb300; outline-offset: 2px; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+/* ============ Header ============ */
+.app-header { background: var(--blue-900); color: #fff; padding: var(--s3) var(--s5); display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center; }
+.wordmark { font-weight: 800; font-size: 20px; letter-spacing: .08em; border: 2px solid #fff; padding: 2px var(--s3); border-radius: 4px; }
+.app-title { font-size: 16px; font-weight: 500; margin: 0; opacity: .9; }
+.summary { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 auto; padding: 0; list-style: none; }
+.summary li { background: rgba(255,255,255,.12); border-radius: 999px; padding: var(--s1) var(--s3); white-space: nowrap; }
+.summary strong { font-size: 15px; }
+.summary .overdue-stat { background: var(--red); }
+.btn { border: 1px solid var(--blue-600); background: var(--blue-600); color: #fff; padding: var(--s2) var(--s4); border-radius: 6px; font-weight: 600; }
+.btn:hover { background: var(--blue-700); }
+.btn[disabled] { opacity: .65; cursor: progress; }
+.btn.secondary { background: var(--surface); color: var(--blue-700); }
+.btn.secondary:hover { background: var(--blue-50); }
+.app-header .btn { background: #fff; color: var(--blue-900); border-color: #fff; }
+
+/* ============ Main / filters ============ */
+main { padding: var(--s4) var(--s5) var(--s6); }
+.note { color: var(--muted); font-size: 12px; margin: 0 0 var(--s3); }
+.filters { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: flex-end; background: var(--surface); padding: var(--s3) var(--s4); border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: var(--s4); }
+.filters label, .field label { display: block; font-weight: 600; font-size: 12px; margin-bottom: var(--s1); color: var(--blue-900); }
+.filters select, .filters input, .field input, .field select, .field textarea { width: 100%; min-width: 150px; padding: var(--s2); border: 1px solid #aab7c8; border-radius: 6px; background: #fff; }
+
+/* ============ Board ============ */
+.board { display: flex; gap: var(--s4); align-items: flex-start; }
+.column { flex: 1 1 0; min-width: 0; background: var(--blue-100); border-radius: var(--radius); border: 2px solid transparent; padding: var(--s3); min-height: 200px; }
+.column.drop-target { border-color: var(--blue-600); background: #c9ddf6; box-shadow: inset 0 0 0 2px #fff; }
+.column-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
+.column-header h2 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--blue-900); }
+.column-header small { display: block; color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; }
+.badge { background: var(--blue-900); color: #fff; border-radius: 999px; min-width: 24px; text-align: center; padding: 1px var(--s2); font-weight: 700; }
+.cards { display: flex; flex-direction: column; gap: var(--s3); min-height: 60px; }
+.empty { color: var(--muted); font-style: italic; text-align: center; padding: var(--s4) 0; }
+
+.card { background: var(--surface); border-radius: 6px; border-left: 6px solid var(--grey); padding: var(--s3); box-shadow: 0 1px 3px rgba(11,37,69,.15); cursor: grab; position: relative; }
+.card.dragging { opacity: .45; }
+.card.p-critical { border-left-color: var(--red); }
+.card.p-high { border-left-color: var(--amber); }
+.card.p-medium { border-left-color: var(--blue); }
+.card.p-low { border-left-color: var(--grey); }
+.card-top { display: flex; justify-content: space-between; gap: var(--s2); align-items: center; }
+.task-id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+.card h3 { margin: var(--s1) 0 var(--s2); font-size: 14px; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: 12px; margin: 2px 0; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); margin: var(--s2) 0; align-items: center; }
+.pill, .tag, .overdue { font-size: 11px; font-weight: 700; padding: 2px var(--s2); border-radius: 999px; }
+.pill { color: #fff; }
+.pill.critical { background: var(--red); } .pill.high { background: #b36b00; } .pill.medium { background: var(--blue-600); } .pill.low { background: #5f6c7d; }
+.tag { background: var(--blue-50); color: var(--blue-700); border: 1px solid var(--blue-100); }
+.overdue { background: #fdecea; color: var(--red); border: 1px solid #f3b9b4; }
+.card-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-top: var(--s2); }
+.card-actions label { font-size: 11px; color: var(--muted); display: flex; gap: var(--s1); align-items: center; }
+.card-actions select { padding: 2px var(--s1); border: 1px solid #aab7c8; border-radius: 4px; max-width: 110px; }
+.icon-btn { border: 1px solid var(--line); background: #fff; border-radius: 4px; width: 28px; height: 28px; line-height: 1; font-size: 16px; color: var(--muted); }
+.icon-btn:hover { color: var(--red); border-color: var(--red); }
+.confirm { display: flex; gap: var(--s1); align-items: center; font-size: 12px; font-weight: 600; }
+.confirm button { padding: 2px var(--s2); border-radius: 4px; border: 1px solid var(--line); background: #fff; }
+.confirm .yes { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* ============ Modal / form ============ */
+.overlay { position: fixed; inset: 0; background: rgba(11,37,69,.55); display: flex; align-items: flex-start; justify-content: center; padding: var(--s5) var(--s3); overflow-y: auto; z-index: 10; }
+.overlay[hidden] { display: none; }
+.modal { background: #fff; border-radius: var(--radius); width: 100%; max-width: 560px; padding: var(--s5); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
+.modal-head h2 { margin: 0; font-size: 18px; color: var(--blue-900); }
+.field { margin-bottom: var(--s3); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.field textarea { min-height: 80px; resize: vertical; }
+.field .error { color: var(--red); font-size: 12px; margin: var(--s1) 0 0; min-height: 0; }
+.field input[aria-invalid="true"], .field select[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--red); background: #fff6f5; }
+.counter { font-size: 11px; color: var(--muted); text-align: right; }
+.form-actions { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); }
+
+/* ============ Toasts ============ */
+.toasts { position: fixed; right: var(--s4); bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); z-index: 20; max-width: 340px; }
+.toast { background: var(--blue-900); color: #fff; padding: var(--s3) var(--s4); border-radius: 6px; border-left: 6px solid var(--green); box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.toast.warn { border-left-color: var(--amber); }
+
+/* ============ Responsive ============ */
+@media (max-width: 767px) {
+  .board { flex-direction: column; align-items: stretch; }
+  .column { width: 100%; }
+  .summary { margin: 0; }
+  .field-row { grid-template-columns: 1fr; }
+  main, .app-header { padding-left: var(--s3); padding-right: var(--s3); }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Header with live summary ============ -->
+<header class="app-header">
+  <span class="wordmark" aria-label="IT PMO">IT PMO</span>
+  <h1 class="app-title">Project Board</h1>
+  <ul class="summary" id="summary" aria-label="Board summary"></ul>
+  <button class="btn" id="openAdd" type="button">+ Add Task</button>
+</header>
+
+<main>
+  <p class="note">Demo / training tool: board data lives in memory only. Refreshing the page resets it to the seeded demo tasks.</p>
+
+  <!-- ============ Filter bar ============ -->
+  <section class="filters" aria-label="Filters">
+    <div>
+      <label for="fProject">Project</label>
+      <select id="fProject"></select>
+    </div>
+    <div>
+      <label for="fAssignee">Assignee contains</label>
+      <input id="fAssignee" type="text" placeholder="e.g. Tan">
+    </div>
+    <div>
+      <label for="fPriority">Priority</label>
+      <select id="fPriority"></select>
+    </div>
+    <button class="btn secondary" id="clearFilters" type="button">Clear filters</button>
+  </section>
+
+  <!-- ============ Kanban board (rendered by renderBoard) ============ -->
+  <section class="board" id="board" aria-label="Kanban board"></section>
+</main>
+
+<!-- ============ Add Task modal ============ -->
+<div class="overlay" id="overlay" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add Task</h2>
+      <button class="icon-btn" id="closeAdd" type="button" aria-label="Close add task form">&times;</button>
+    </div>
+    <form id="taskForm" novalidate>
+      <div class="field">
+        <label for="title">Task Title *</label>
+        <input id="title" name="title" type="text" maxlength="80" aria-describedby="err-title">
+        <p class="error" id="err-title" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" maxlength="500" aria-describedby="err-description"></textarea>
+        <div class="counter" id="descCount">0 / 500</div>
+        <p class="error" id="err-description" role="alert"></p>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="project">Project / Workstream *</label>
+          <select id="project" name="project"></select>
+        </div>
+        <div class="field">
+          <label for="category">Category *</label>
+          <select id="category" name="category"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="assignee">Assignee *</label>
+          <input id="assignee" name="assignee" type="text" aria-describedby="err-assignee">
+          <p class="error" id="err-assignee" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="dueDate">Due Date *</label>
+          <input id="dueDate" name="dueDate" type="date" aria-describedby="err-dueDate">
+          <p class="error" id="err-dueDate" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status"></select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="button" id="cancelAdd">Cancel</button>
+        <button class="btn" type="submit" id="submitBtn">Add Task</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<!-- Toast region -->
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — edit values here only
+   ===================================================================== */
+/*
+  FormSubmit one-time activation (in the HTML comment spirit):
+  The FIRST submission to a new address makes FormSubmit send a confirmation
+  email to that address. Submissions are only delivered after the link in
+  that email is clicked. Until then, requests may fail or be held.
+*/
+const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
+const ID_PREFIX = "UOB-ITPM-";
+const SUBJECT_PREFIX = "[UOB IT PMO]";
+
+const STATUSES = [
+  { name: "Backlog", hint: "Logged, not yet scheduled" },
+  { name: "In Progress", hint: "Actively being worked" },
+  { name: "Blocked", hint: "Waiting on dependency, vendor or approval" },
+  { name: "Done", hint: "Completed / closed" }
+];
+const PROJECTS = ["Core Banking Upgrade", "Digital Channels", "Cybersecurity Uplift", "Data & Analytics", "Infrastructure & Cloud", "Vendor Management"];
+const CATEGORIES = ["Application Development", "Infrastructure", "Cybersecurity", "Data", "Compliance", "Vendor"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+/* =====================================================================
+   STATE — single source of truth (in memory only, no storage APIs)
+   ===================================================================== */
+const state = {
+  tasks: [],
+  filters: { project: "", assignee: "", priority: "" }
+};
+let idCounter = 0;          // incremented for every new task ID
+let pendingDeleteId = null; // which card is showing the inline "Delete? Yes / No"
+let draggedId = null;
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function pad2(n) { return String(n).padStart(2, "0"); }
+function toISO(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+function todayISO() { return toISO(new Date()); }
+function offsetISO(days) { const d = new Date(); d.setDate(d.getDate() + days); return toISO(d); }
+function isOverdue(task) { return task.status !== "Done" && task.dueDate < todayISO(); }
+function formatDate(iso) {
+  const p = iso.split("-");
+  const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function slug(s) { return s.toLowerCase().replace(/\s+/g, "-"); }
+function nextTaskId() { idCounter += 1; return ID_PREFIX + String(idCounter).padStart(4, "0"); }
+function $(id) { return document.getElementById(id); }
+
+/* =====================================================================
+   SEED DATA
+   ===================================================================== */
+function seedTasks() {
+  const seed = [
+    ["Migrate FX pricing service to AWS", "Lift and re-platform the FX pricing microservice to the approved cloud landing zone.", "Infrastructure & Cloud", "Infrastructure", "Priya Nair", "High", 21, "In Progress"],
+    ["Patch CVE-2025-XXXX on branch teller VDI", "Apply vendor security patch to teller virtual desktop images across all branches.", "Cybersecurity Uplift", "Cybersecurity", "Daniel Tan", "Critical", -3, "In Progress"],
+    ["UAT sign-off for mobile onboarding release 4.2", "Collect business sign-off for release 4.2 of the mobile onboarding flow.", "Digital Channels", "Application Development", "Mei Lin Chong", "High", 5, "Blocked"],
+    ["Renew core banking vendor support contract", "Negotiate and approve the multi-year support renewal.", "Vendor Management", "Vendor", "Arun Pillai", "Medium", 30, "Backlog"],
+    ["Build regulatory reporting data mart", "Create curated data mart for quarterly regulatory submissions.", "Data & Analytics", "Data", "Sofia Rahman", "Medium", 45, "Backlog"],
+    ["Core ledger upgrade – performance test cycle 2", "Run second performance test cycle against upgraded ledger.", "Core Banking Upgrade", "Application Development", "Kenji Ong", "High", -6, "Blocked"],
+    ["Quarterly access recertification", "Complete privileged access review for production systems.", "Cybersecurity Uplift", "Compliance", "Hannah Lim", "Low", 14, "Backlog"],
+    ["Decommission legacy SFTP gateway", "Retire the old SFTP gateway after partner migration.", "Infrastructure & Cloud", "Infrastructure", "Ravi Menon", "Medium", -10, "Done"]
+  ];
+  return seed.map(function (s) {
+    return { id: nextTaskId(), title: s[0], description: s[1], project: s[2], category: s[3], assignee: s[4], priority: s[5], dueDate: offsetISO(s[6]), status: s[7] };
+  });
+}
+
+/* =====================================================================
+   FILTERING
+   ===================================================================== */
+function applyFilters(tasks) {
+  const f = state.filters;
+  const needle = f.assignee.trim().toLowerCase();
+  return tasks.filter(function (t) {
+    return (!f.project || t.project === f.project) &&
+           (!f.priority || t.priority === f.priority) &&
+           (!needle || t.assignee.toLowerCase().indexOf(needle) !== -1);
+  });
+}
+
+/* =====================================================================
+   RENDERING — the only place card DOM is produced
+   ===================================================================== */
+function renderCard(task) {
+  const overdue = isOverdue(task);
+  const confirming = pendingDeleteId === task.id;
+  const moveOptions = STATUSES.map(function (s) {
+    return '<option value="' + escapeHtml(s.name) + '"' + (s.name === task.status ? " selected" : "") + ">" + escapeHtml(s.name) + "</option>";
+  }).join("");
+  const actions = confirming
+    ? '<span class="confirm" role="group" aria-label="Confirm delete">Delete? ' +
+      '<button type="button" class="yes" data-action="delete-yes" data-id="' + escapeHtml(task.id) + '">Yes</button>' +
+      '<button type="button" data-action="delete-no" data-id="' + escapeHtml(task.id) + '">No</button></span>'
+    : '<button type="button" class="icon-btn" data-action="delete" data-id="' + escapeHtml(task.id) + '" aria-label="Delete task ' + escapeHtml(task.id) + '">&times;</button>';
+  return '<article class="card p-' + slug(task.priority) + '" draggable="true" data-id="' + escapeHtml(task.id) + '">' +
+    '<div class="card-top"><span class="task-id">' + escapeHtml(task.id) + '</span>' +
+    '<span class="pill ' + slug(task.priority) + '">' + escapeHtml(task.priority) + '</span></div>' +
+    '<h3>' + escapeHtml(task.title) + '</h3>' +
+    '<p class="meta">&#9638; ' + escapeHtml(task.project) + '</p>' +
+    '<p class="meta">&#9786; ' + escapeHtml(task.assignee) + '</p>' +
+    '<p class="meta">&#128197; Due ' + escapeHtml(formatDate(task.dueDate)) + '</p>' +
+    '<div class="chips"><span class="tag">' + escapeHtml(task.category) + '</span>' +
+    (overdue ? '<span class="overdue">Overdue</span>' : "") + '</div>' +
+    '<div class="card-actions">' +
+    '<label>Move &#9656; <select data-action="move" data-id="' + escapeHtml(task.id) + '" aria-label="Move ' + escapeHtml(task.id) + ' to column">' + moveOptions + '</select></label>' +
+    actions + '</div></article>';
+}
+
+function renderSummary() {
+  const tasks = state.tasks;
+  let html = "<li><strong>" + tasks.length + "</strong> total</li>";
+  STATUSES.forEach(function (s) {
+    html += "<li><strong>" + tasks.filter(function (t) { return t.status === s.name; }).length + "</strong> " + escapeHtml(s.name) + "</li>";
+  });
+  html += '<li class="overdue-stat"><strong>' + tasks.filter(isOverdue).length + "</strong> Overdue</li>";
+  $("summary").innerHTML = html;
+}
+
+function renderBoard() {
+  const visible = applyFilters(state.tasks);
+  $("board").innerHTML = STATUSES.map(function (s) {
+    const col = visible.filter(function (t) { return t.status === s.name; });
+    return '<section class="column" data-status="' + escapeHtml(s.name) + '" aria-label="' + escapeHtml(s.name) + ' column">' +
+      '<div class="column-header"><h2>' + escapeHtml(s.name) + "<small>" + escapeHtml(s.hint) + '</small></h2>' +
+      '<span class="badge" aria-label="' + col.length + ' tasks">' + col.length + "</span></div>" +
+      '<div class="cards">' + (col.length ? col.map(renderCard).join("") : '<p class="empty">No tasks</p>') + "</div></section>";
+  }).join("");
+  renderSummary();
+}
+
+/* =====================================================================
+   ACTIONS
+   ===================================================================== */
+function addTask(data) {
+  const task = {
+    id: nextTaskId(), title: data.title, description: data.description, project: data.project,
+    category: data.category, assignee: data.assignee, priority: data.priority,
+    dueDate: data.dueDate, status: data.status
+  };
+  state.tasks.push(task);
+  renderBoard();
+  return task;
+}
+
+function moveTask(id, status) {
+  const task = state.tasks.find(function (t) { return t.id === id; });
+  if (!task || task.status === status) { renderBoard(); return; }
+  task.status = status;
+  renderBoard();
+  showToast(id + " moved to " + status);
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+  pendingDeleteId = null;
+  renderBoard();
+}
+
+/* =====================================================================
+   TOASTS
+   ===================================================================== */
+function showToast(message, type) {
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "warn" ? " warn" : "");
+  el.textContent = message; // textContent: safe by construction
+  $("toasts").appendChild(el);
+  setTimeout(function () { el.remove(); }, type === "warn" ? 6000 : 3500);
+}
+
+/* =====================================================================
+   FORMSUBMIT NOTIFICATION
+   ===================================================================== */
+async function notifyNewTask(task) {
+  const res = await fetch(FORMSUBMIT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      _subject: SUBJECT_PREFIX + " New task " + task.id + ": " + task.title,
+      _template: "table",
+      _captcha: "false",
+      "Task ID": task.id,
+      Title: task.title,
+      Description: task.description,
+      Project: task.project,
+      Category: task.category,
+      Assignee: task.assignee,
+      Priority: task.priority,
+      "Due Date": task.dueDate,
+      Status: task.status,
+      "Submitted At": new Date().toISOString()
+    })
+  });
+  if (!res.ok) throw new Error("FormSubmit failed: " + res.status);
+  return res.json();
+}
+
+/* =====================================================================
+   FORM: validation, modal, submit
+   ===================================================================== */
+const FIELD_IDS = ["title", "description", "assignee", "dueDate"];
+
+function setError(field, message) {
+  $("err-" + field).textContent = message || "";
+  if (message) { $(field).setAttribute("aria-invalid", "true"); } else { $(field).removeAttribute("aria-invalid"); }
+}
+
+function readForm() {
+  return {
+    title: $("title").value.trim(), description: $("description").value.trim(),
+    project: $("project").value, category: $("category").value,
+    assignee: $("assignee").value.trim(), priority: $("priority").value,
+    dueDate: $("dueDate").value, status: $("status").value
+  };
+}
+
+function validateForm(d) {
+  const errors = {};
+  if (!d.title) errors.title = "Task title is required.";
+  else if (d.title.length > 80) errors.title = "Title must be 80 characters or fewer.";
+  if (d.description.length > 500) errors.description = "Description must be 500 characters or fewer.";
+  if (!d.assignee) errors.assignee = "Assignee is required.";
+  if (!d.dueDate) errors.dueDate = "Due date is required.";
+  else if (d.dueDate < todayISO()) errors.dueDate = "Due date must not be in the past.";
+  FIELD_IDS.forEach(function (f) { setError(f, errors[f]); });
+  const firstBad = FIELD_IDS.find(function (f) { return errors[f]; });
+  if (firstBad) $(firstBad).focus();
+  return !firstBad;
+}
+
+function resetForm() {
+  $("taskForm").reset();
+  $("priority").value = "Medium";
+  $("status").value = "Backlog";
+  $("descCount").textContent = "0 / 500";
+  FIELD_IDS.forEach(function (f) { setError(f, ""); });
+}
+
+let lastFocus = null;
+function openModal() {
+  lastFocus = document.activeElement;
+  $("dueDate").min = todayISO();
+  $("overlay").hidden = false;
+  $("title").focus();
+}
+function closeModal() {
+  $("overlay").hidden = true;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+  const data = readForm();
+  if (!validateForm(data)) return;
+
+  const btn = $("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+
+  // Optimistic UI: card appears right away, network call runs in parallel.
+  const task = addTask(data);
+  resetForm();
+  closeModal();
+  showToast("Task " + task.id + " added to the board");
+
+  try {
+    await notifyNewTask(task);
+  } catch (err) {
+    showToast("Card added locally — email notification failed", "warn");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Add Task";
+  }
+}
+
+/* =====================================================================
+   EVENT WIRING
+   ===================================================================== */
+function fillSelect(id, values, firstLabel) {
+  const opts = (firstLabel ? ['<option value="">' + escapeHtml(firstLabel) + "</option>"] : []).concat(
+    values.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + "</option>"; }));
+  $(id).innerHTML = opts.join("");
+}
+
+function wireBoardEvents() {
+  const board = $("board");
+
+  board.addEventListener("click", function (e) {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const id = btn.dataset.id, action = btn.dataset.action;
+    if (action === "delete") { pendingDeleteId = id; renderBoard(); }
+    else if (action === "delete-no") { pendingDeleteId = null; renderBoard(); }
+    else if (action === "delete-yes") { deleteTask(id); showToast(id + " deleted"); }
+  });
+
+  board.addEventListener("change", function (e) {
+    const sel = e.target.closest('select[data-action="move"]');
+    if (sel) moveTask(sel.dataset.id, sel.value);
+  });
+
+  // Native HTML5 drag and drop
+  board.addEventListener("dragstart", function (e) {
+    const card = e.target.closest(".card");
+    if (!card) return;
+    draggedId = card.dataset.id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", draggedId);
+    card.classList.add("dragging");
+  });
+  board.addEventListener("dragend", function () {
+    draggedId = null;
+    board.querySelectorAll(".dragging, .drop-target").forEach(function (el) { el.classList.remove("dragging", "drop-target"); });
+  });
+  board.addEventListener("dragover", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    board.querySelectorAll(".drop-target").forEach(function (el) { if (el !== col) el.classList.remove("drop-target"); });
+    col.classList.add("drop-target");
+  });
+  board.addEventListener("dragleave", function (e) {
+    const col = e.target.closest(".column");
+    if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop-target");
+  });
+  board.addEventListener("drop", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    const id = draggedId;
+    draggedId = null;
+    moveTask(id, col.dataset.status);
+  });
+}
+
+function init() {
+  state.tasks = seedTasks();
+
+  fillSelect("fProject", PROJECTS, "All projects");
+  fillSelect("fPriority", PRIORITIES, "All priorities");
+  fillSelect("project", PROJECTS);
+  fillSelect("category", CATEGORIES);
+  fillSelect("priority", PRIORITIES);
+  fillSelect("status", STATUSES.map(function (s) { return s.name; }));
+  $("priority").value = "Medium";
+
+  $("fProject").addEventListener("change", function (e) { state.filters.project = e.target.value; renderBoard(); });
+  $("fPriority").addEventListener("change", function (e) { state.filters.priority = e.target.value; renderBoard(); });
+  $("fAssignee").addEventListener("input", function (e) { state.filters.assignee = e.target.value; renderBoard(); });
+  $("clearFilters").addEventListener("click", function () {
+    state.filters = { project: "", assignee: "", priority: "" };
+    $("fProject").value = ""; $("fPriority").value = ""; $("fAssignee").value = "";
+    renderBoard();
+  });
+
+  $("openAdd").addEventListener("click", openModal);
+  $("closeAdd").addEventListener("click", closeModal);
+  $("cancelAdd").addEventListener("click", closeModal);
+  $("overlay").addEventListener("mousedown", function (e) { if (e.target === $("overlay")) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("overlay").hidden) closeModal(); });
+  $("description").addEventListener("input", function (e) { $("descCount").textContent = e.target.value.length + " / 500"; });
+  $("taskForm").addEventListener("submit", handleSubmit);
+
+  wireBoardEvents();
+  renderBoard();
+}
+
+init();
+</script>
+</body>
+</html>
