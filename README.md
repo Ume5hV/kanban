@@ -3,6 +3,15 @@
 A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML, CSS and JavaScript. No framework, no build step and no external resources.
 
 **Live demo:** https://ume5hv.github.io/kanban/
+**DC superhero version:** https://ume5hv.github.io/kanban/dc.html
+
+## Screenshots
+
+| Original (`index.html`) | DC superhero redesign (`dc.html`) |
+|---|---|
+| ![IT PMO Kanban board, original corporate blue design](docs/screenshot.png) | ![Hall of Justice Board, DC superhero themed redesign](docs/screenshot-dc.png) |
+
+The redesign keeps all behaviour from the original. Only the styling, the wording and the demo data changed. It is a fan-made, original design with no official logos or artwork, and is not affiliated with DC or Warner Bros.
 
 ## Screenshot
 

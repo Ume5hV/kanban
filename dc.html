@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hall of Justice Board</title>
+<style>
+/* ============ Design tokens: Gotham night + Metropolis blue, signal red, gold ============ */
+:root {
+  --night-950: #070a12;
+  --night-900: #0b1020;
+  --night-800: #121a2e;
+  --night-700: #1a2440;
+  --night-600: #26335a;
+  --steel: #8fa0c4;
+  --ink: #e8ecf6;
+  --muted: #9aa8c7;
+  --line: #2b3961;
+  --bg: var(--night-900);
+  --surface: var(--night-800);
+  --card: #172038;
+  --blue: #2f80ed;
+  --blue-deep: #1b4fa8;
+  --red: #ff3b3b;
+  --red-deep: #b3161c;
+  --gold: #ffc61a;
+  --gold-deep: #c99400;
+  --green: #35c46b;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --radius: 4px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue Condensed", "Roboto Condensed", Impact, "Haettenschweiler", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: var(--font); color: var(--ink); font-size: 14px; line-height: 1.45;
+  background-color: var(--bg);
+  background-image: radial-gradient(1200px 500px at 85% -10%, rgba(47,128,237,.18), transparent 60%),
+                    radial-gradient(900px 400px at 0% 0%, rgba(255,59,59,.10), transparent 55%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3 { font-family: var(--display); }
+
+/* ============ Header: comic halftone banner with a signal-light stripe ============ */
+.app-header {
+  position: relative; display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center;
+  padding: var(--s4) var(--s5);
+  background:
+    radial-gradient(circle, rgba(255,255,255,.07) 1.2px, transparent 1.6px) 0 0 / 10px 10px,
+    linear-gradient(105deg, var(--night-950) 0%, #0f1c3d 55%, #1b3f86 100%);
+  border-bottom: 4px solid var(--gold);
+  box-shadow: 0 6px 24px rgba(0,0,0,.45);
+}
+.app-header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 4px;
+  background: linear-gradient(90deg, var(--red) 0 33%, var(--blue) 33% 66%, var(--gold) 66% 100%);
+}
+.brand { display: flex; align-items: center; gap: var(--s3); }
+.emblem { width: 44px; height: 50px; flex: none; filter: drop-shadow(0 2px 6px rgba(255,198,26,.35)); }
+.wordmark { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: #fff; }
+.wordmark span { color: var(--gold); }
+.app-title { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--steel); }
+.summary { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 auto; padding: 0; list-style: none; }
+.summary li {
+  background: rgba(7,10,18,.55); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--s1) var(--s3); white-space: nowrap; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+.summary strong { font-family: var(--display); font-size: 20px; color: #fff; margin-right: 4px; vertical-align: -1px; }
+.summary .overdue-stat { background: var(--red-deep); border-color: var(--red); color: #ffe3e3; }
+.btn {
+  border: 2px solid var(--gold); background: var(--gold); color: #1a1300; padding: var(--s2) var(--s4);
+  border-radius: var(--radius); font-family: var(--display); font-weight: 800; font-size: 16px; letter-spacing: .08em; text-transform: uppercase;
+  transform: skewX(-8deg); transition: transform .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.btn > * { display: inline-block; transform: skewX(8deg); }
+.btn:hover { background: #ffd84d; box-shadow: 0 0 0 3px rgba(255,198,26,.25); transform: skewX(-8deg) translateY(-1px); }
+.btn[disabled] { opacity: .65; cursor: progress; transform: skewX(-8deg); }
+.btn.secondary { background: transparent; color: var(--ink); border-color: var(--steel); }
+.btn.secondary:hover { background: var(--night-700); box-shadow: none; }
+
+/* ============ Main / filters ============ */
+main { padding: var(--s5) var(--s5) var(--s6); max-width: 1500px; margin: 0 auto; }
+.note { color: var(--muted); font-size: 12px; margin: 0 0 var(--s3); }
+.filters {
+  display: flex; flex-wrap: wrap; gap: var(--s3); align-items: flex-end;
+  background: var(--surface); padding: var(--s3) var(--s4); border-radius: var(--radius);
+  border: 1px solid var(--line); border-top: 3px solid var(--blue); margin-bottom: var(--s5);
+}
+.filters label, .field label { display: block; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: var(--s1); color: var(--steel); }
+.filters select, .filters input, .field input, .field select, .field textarea {
+  width: 100%; min-width: 150px; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--night-950); color: var(--ink);
+}
+.filters select:hover, .filters input:hover, .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--steel); }
+::placeholder { color: #6c7ba0; }
+
+/* ============ Board ============ */
+.board { display: flex; gap: var(--s4); align-items: flex-start; }
+.column {
+  flex: 1 1 0; min-width: 0; background: var(--surface); border-radius: var(--radius);
+  border: 1px solid var(--line); border-top: 4px solid var(--steel); padding: var(--s3); min-height: 220px;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.column[data-status="Backlog"] { border-top-color: var(--steel); }
+.column[data-status="In Progress"] { border-top-color: var(--blue); }
+.column[data-status="Blocked"] { border-top-color: var(--red); }
+.column[data-status="Done"] { border-top-color: var(--gold); }
+.column.drop-target { border-color: var(--gold); background: var(--night-700); box-shadow: 0 0 0 2px rgba(255,198,26,.35), 0 0 24px rgba(255,198,26,.18); }
+.column-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); margin-bottom: var(--s3); }
+.column-header h2 { margin: 0; font-size: 22px; line-height: 1.05; text-transform: uppercase; letter-spacing: .08em; color: #fff; }
+.column-header small { display: block; margin-top: 2px; font-family: var(--font); color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.badge { background: var(--night-950); border: 1px solid var(--line); color: var(--gold); border-radius: var(--radius); min-width: 30px; text-align: center; padding: 1px var(--s2); font-family: var(--display); font-weight: 800; font-size: 18px; }
+.cards { display: flex; flex-direction: column; gap: var(--s3); min-height: 60px; }
+.empty { color: var(--muted); font-style: italic; text-align: center; padding: var(--s4) 0; }
+
+.card {
+  position: relative; background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--steel);
+  border-radius: var(--radius); padding: var(--s3); cursor: grab;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.5); border-color: var(--steel); }
+.card.dragging { opacity: .45; transform: rotate(-1.5deg); }
+.card.p-critical { border-left-color: var(--red); }
+.card.p-high { border-left-color: var(--gold); }
+.card.p-medium { border-left-color: var(--blue); }
+.card.p-low { border-left-color: var(--steel); }
+.card-top { display: flex; justify-content: space-between; gap: var(--s2); align-items: center; }
+.task-id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+.card h3 { margin: var(--s1) 0 var(--s2); font-size: 19px; line-height: 1.15; font-weight: 700; letter-spacing: .02em; color: #fff; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: 12px; margin: 2px 0; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); margin: var(--s2) 0; align-items: center; }
+.pill, .tag, .overdue { font-size: 11px; font-weight: 700; padding: 2px var(--s2); border-radius: 2px; text-transform: uppercase; letter-spacing: .06em; }
+.pill { color: #fff; }
+.pill.critical { background: var(--red-deep); border: 1px solid var(--red); }
+.pill.high { background: var(--gold); color: #1a1300; border: 1px solid var(--gold-deep); }
+.pill.medium { background: var(--blue-deep); border: 1px solid var(--blue); }
+.pill.low { background: var(--night-600); border: 1px solid var(--steel); }
+.tag { background: transparent; color: var(--steel); border: 1px solid var(--line); }
+.overdue { background: var(--red); color: #fff; border: 1px solid #ff8a8a; }
+.card-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-top: var(--s2); }
+.card-actions label { font-size: 11px; color: var(--muted); display: flex; gap: var(--s1); align-items: center; }
+.card-actions select { padding: 2px var(--s1); border: 1px solid var(--line); border-radius: 2px; background: var(--night-950); color: var(--ink); max-width: 110px; }
+.icon-btn { border: 1px solid var(--line); background: var(--night-950); border-radius: 2px; width: 28px; height: 28px; line-height: 1; font-size: 16px; color: var(--muted); transition: color .15s ease, border-color .15s ease; }
+.icon-btn:hover { color: var(--red); border-color: var(--red); }
+.confirm { display: flex; gap: var(--s1); align-items: center; font-size: 12px; font-weight: 600; color: var(--ink); }
+.confirm button { padding: 2px var(--s2); border-radius: 2px; border: 1px solid var(--line); background: var(--night-950); }
+.confirm .yes { background: var(--red-deep); border-color: var(--red); color: #fff; }
+
+/* ============ Modal / form ============ */
+.overlay { position: fixed; inset: 0; background: rgba(3,5,10,.75); backdrop-filter: blur(3px); display: flex; align-items: flex-start; justify-content: center; padding: var(--s5) var(--s3); overflow-y: auto; z-index: 10; }
+.overlay[hidden] { display: none; }
+.modal { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--gold); border-radius: var(--radius); width: 100%; max-width: 560px; padding: var(--s5); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
+.modal-head h2 { margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: .06em; color: #fff; }
+.field { margin-bottom: var(--s3); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.field textarea { min-height: 80px; resize: vertical; }
+.field .error { color: #ff8a8a; font-size: 12px; margin: var(--s1) 0 0; min-height: 0; }
+.field input[aria-invalid="true"], .field select[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--red); background: #2a0f14; }
+.counter { font-size: 11px; color: var(--muted); text-align: right; }
+.form-actions { display: flex; justify-content: flex-end; gap: var(--s3); margin-top: var(--s4); }
+
+/* ============ Toasts ============ */
+.toasts { position: fixed; right: var(--s4); bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); z-index: 20; max-width: 340px; }
+.toast { background: var(--night-950); color: var(--ink); padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); border-left: 6px solid var(--green); box-shadow: 0 8px 24px rgba(0,0,0,.55); }
+.toast.warn { border-left-color: var(--gold); }
+
+/* ============ Footer ============ */
+.site-footer { text-align: center; color: var(--muted); font-size: 11px; padding: var(--s4) var(--s4) var(--s6); }
+
+/* ============ Responsive + motion ============ */
+@media (max-width: 767px) {
+  .board { flex-direction: column; align-items: stretch; }
+  .column { width: 100%; }
+  .summary { margin: 0; }
+  .field-row { grid-template-columns: 1fr; }
+  main, .app-header { padding-left: var(--s3); padding-right: var(--s3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none; animation: none; }
+  .card:hover, .btn:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Header with live summary ============ -->
+<header class="app-header">
+  <div class="brand">
+    <svg class="emblem" viewBox="0 0 44 50" aria-hidden="true" focusable="false">
+      <path d="M22 2 L41 9 V26 C41 37 33 44 22 48 C11 44 3 37 3 26 V9 Z" fill="#0b1020" stroke="#ffc61a" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M25 9 L13 28 H21 L18 41 L31 21 H23 Z" fill="#ff3b3b" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+    <span class="wordmark" aria-label="IT PMO">IT <span>PMO</span></span>
+  </div>
+  <h1 class="app-title">Hall of Justice Board</h1>
+  <ul class="summary" id="summary" aria-label="Board summary"></ul>
+  <button class="btn" id="openAdd" type="button"><span>+ Add Mission</span></button>
+</header>
+
+<main>
+  <p class="note">Demo / training tool: board data lives in memory only. Refreshing the page resets it to the seeded demo missions.</p>
+
+  <!-- ============ Filter bar ============ -->
+  <section class="filters" aria-label="Filters">
+    <div>
+      <label for="fProject">Project</label>
+      <select id="fProject"></select>
+    </div>
+    <div>
+      <label for="fAssignee">Hero contains</label>
+      <input id="fAssignee" type="text" placeholder="e.g. Diana">
+    </div>
+    <div>
+      <label for="fPriority">Priority</label>
+      <select id="fPriority"></select>
+    </div>
+    <button class="btn secondary" id="clearFilters" type="button"><span>Clear filters</span></button>
+  </section>
+
+  <!-- ============ Kanban board (rendered by renderBoard) ============ -->
+  <section class="board" id="board" aria-label="Kanban board"></section>
+</main>
+
+<footer class="site-footer">Fan-made demo with an original design, inspired by the DC superhero universe. Not affiliated with or endorsed by DC or Warner Bros. No official logos or artwork are used.</footer>
+
+<!-- ============ Add Task modal ============ -->
+<div class="overlay" id="overlay" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add Mission</h2>
+      <button class="icon-btn" id="closeAdd" type="button" aria-label="Close add mission form">&times;</button>
+    </div>
+    <form id="taskForm" novalidate>
+      <div class="field">
+        <label for="title">Mission Title *</label>
+        <input id="title" name="title" type="text" maxlength="80" aria-describedby="err-title">
+        <p class="error" id="err-title" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" maxlength="500" aria-describedby="err-description"></textarea>
+        <div class="counter" id="descCount">0 / 500</div>
+        <p class="error" id="err-description" role="alert"></p>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="project">Project / Workstream *</label>
+          <select id="project" name="project"></select>
+        </div>
+        <div class="field">
+          <label for="category">Category *</label>
+          <select id="category" name="category"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="assignee">Assigned Hero *</label>
+          <input id="assignee" name="assignee" type="text" aria-describedby="err-assignee">
+          <p class="error" id="err-assignee" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="dueDate">Due Date *</label>
+          <input id="dueDate" name="dueDate" type="date" aria-describedby="err-dueDate">
+          <p class="error" id="err-dueDate" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status"></select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="button" id="cancelAdd"><span>Cancel</span></button>
+        <button class="btn" type="submit" id="submitBtn"><span>Add Mission</span></button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<!-- Toast region -->
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — edit values here only
+   ===================================================================== */
+/*
+  FormSubmit one-time activation (in the HTML comment spirit):
+  The FIRST submission to a new address makes FormSubmit send a confirmation
+  email to that address. Submissions are only delivered after the link in
+  that email is clicked. Until then, requests may fail or be held.
+*/
+const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
+const ID_PREFIX = "HOJ-";
+const SUBJECT_PREFIX = "[Hall of Justice Board]";
+
+const STATUSES = [
+  { name: "Backlog", hint: "The Watchtower: logged, not yet scheduled" },
+  { name: "In Progress", hint: "In action: actively being worked" },
+  { name: "Blocked", hint: "Kryptonite: waiting on a dependency or approval" },
+  { name: "Done", hint: "Justice served: completed / closed" }
+];
+const PROJECTS = ["Gotham Core Systems", "Metropolis Digital", "Watchtower Security", "Oracle Data Vault", "Atlantis Cloud", "Allies & Vendors"];
+const CATEGORIES = ["Development", "Infrastructure", "Security", "Data", "Compliance", "Vendor"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+/* =====================================================================
+   STATE — single source of truth (in memory only, no storage APIs)
+   ===================================================================== */
+const state = {
+  tasks: [],
+  filters: { project: "", assignee: "", priority: "" }
+};
+let idCounter = 0;          // incremented for every new task ID
+let pendingDeleteId = null; // which card is showing the inline "Delete? Yes / No"
+let draggedId = null;
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function pad2(n) { return String(n).padStart(2, "0"); }
+function toISO(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+function todayISO() { return toISO(new Date()); }
+function offsetISO(days) { const d = new Date(); d.setDate(d.getDate() + days); return toISO(d); }
+function isOverdue(task) { return task.status !== "Done" && task.dueDate < todayISO(); }
+function formatDate(iso) {
+  const p = iso.split("-");
+  const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function slug(s) { return s.toLowerCase().replace(/\s+/g, "-"); }
+function nextTaskId() { idCounter += 1; return ID_PREFIX + String(idCounter).padStart(4, "0"); }
+function $(id) { return document.getElementById(id); }
+
+/* =====================================================================
+   SEED DATA
+   ===================================================================== */
+function seedTasks() {
+  const seed = [
+    ["Move the Atlantis pricing service to the cloud", "Lift and re-platform the pricing microservice to the approved cloud landing zone.", "Atlantis Cloud", "Infrastructure", "Diana Prince", "High", 21, "In Progress"],
+    ["Patch the Watchtower access terminals", "Apply the vendor security patch to every monitoring terminal across the league.", "Watchtower Security", "Security", "Bruce Wayne", "Critical", -3, "In Progress"],
+    ["Sign-off for Metropolis mobile release 4.2", "Collect stakeholder sign-off for release 4.2 of the mobile onboarding flow.", "Metropolis Digital", "Development", "Lois Lane", "High", 5, "Blocked"],
+    ["Renew the Fortress support contract", "Negotiate and approve the multi-year support renewal.", "Allies & Vendors", "Vendor", "Clark Kent", "Medium", 30, "Backlog"],
+    ["Build the Oracle reporting data mart", "Create a curated data mart for quarterly regulatory submissions.", "Oracle Data Vault", "Data", "Barbara Gordon", "Medium", 45, "Backlog"],
+    ["Gotham ledger upgrade: performance test cycle 2", "Run the second performance test cycle against the upgraded ledger.", "Gotham Core Systems", "Development", "Victor Stone", "High", -6, "Blocked"],
+    ["Quarterly access recertification", "Complete the privileged access review for production systems.", "Watchtower Security", "Compliance", "Alfred Pennyworth", "Low", 14, "Backlog"],
+    ["Retire the old Batcave SFTP gateway", "Decommission the legacy SFTP gateway after partner migration.", "Atlantis Cloud", "Infrastructure", "Arthur Curry", "Medium", -10, "Done"]
+  ];
+  return seed.map(function (s) {
+    return { id: nextTaskId(), title: s[0], description: s[1], project: s[2], category: s[3], assignee: s[4], priority: s[5], dueDate: offsetISO(s[6]), status: s[7] };
+  });
+}
+
+/* =====================================================================
+   FILTERING
+   ===================================================================== */
+function applyFilters(tasks) {
+  const f = state.filters;
+  const needle = f.assignee.trim().toLowerCase();
+  return tasks.filter(function (t) {
+    return (!f.project || t.project === f.project) &&
+           (!f.priority || t.priority === f.priority) &&
+           (!needle || t.assignee.toLowerCase().indexOf(needle) !== -1);
+  });
+}
+
+/* =====================================================================
+   RENDERING — the only place card DOM is produced
+   ===================================================================== */
+function renderCard(task) {
+  const overdue = isOverdue(task);
+  const confirming = pendingDeleteId === task.id;
+  const moveOptions = STATUSES.map(function (s) {
+    return '<option value="' + escapeHtml(s.name) + '"' + (s.name === task.status ? " selected" : "") + ">" + escapeHtml(s.name) + "</option>";
+  }).join("");
+  const actions = confirming
+    ? '<span class="confirm" role="group" aria-label="Confirm delete">Delete? ' +
+      '<button type="button" class="yes" data-action="delete-yes" data-id="' + escapeHtml(task.id) + '">Yes</button>' +
+      '<button type="button" data-action="delete-no" data-id="' + escapeHtml(task.id) + '">No</button></span>'
+    : '<button type="button" class="icon-btn" data-action="delete" data-id="' + escapeHtml(task.id) + '" aria-label="Delete task ' + escapeHtml(task.id) + '">&times;</button>';
+  return '<article class="card p-' + slug(task.priority) + '" draggable="true" data-id="' + escapeHtml(task.id) + '">' +
+    '<div class="card-top"><span class="task-id">' + escapeHtml(task.id) + '</span>' +
+    '<span class="pill ' + slug(task.priority) + '">' + escapeHtml(task.priority) + '</span></div>' +
+    '<h3>' + escapeHtml(task.title) + '</h3>' +
+    '<p class="meta">&#9638; ' + escapeHtml(task.project) + '</p>' +
+    '<p class="meta">&#9786; ' + escapeHtml(task.assignee) + '</p>' +
+    '<p class="meta">&#9719; Due ' + escapeHtml(formatDate(task.dueDate)) + '</p>' +
+    '<div class="chips"><span class="tag">' + escapeHtml(task.category) + '</span>' +
+    (overdue ? '<span class="overdue">Overdue</span>' : "") + '</div>' +
+    '<div class="card-actions">' +
+    '<label>Move &#9656; <select data-action="move" data-id="' + escapeHtml(task.id) + '" aria-label="Move ' + escapeHtml(task.id) + ' to column">' + moveOptions + '</select></label>' +
+    actions + '</div></article>';
+}
+
+function renderSummary() {
+  const tasks = state.tasks;
+  let html = "<li><strong>" + tasks.length + "</strong> total</li>";
+  STATUSES.forEach(function (s) {
+    html += "<li><strong>" + tasks.filter(function (t) { return t.status === s.name; }).length + "</strong> " + escapeHtml(s.name) + "</li>";
+  });
+  html += '<li class="overdue-stat"><strong>' + tasks.filter(isOverdue).length + "</strong> Overdue</li>";
+  $("summary").innerHTML = html;
+}
+
+function renderBoard() {
+  const visible = applyFilters(state.tasks);
+  $("board").innerHTML = STATUSES.map(function (s) {
+    const col = visible.filter(function (t) { return t.status === s.name; });
+    return '<section class="column" data-status="' + escapeHtml(s.name) + '" aria-label="' + escapeHtml(s.name) + ' column">' +
+      '<div class="column-header"><h2>' + escapeHtml(s.name) + "<small>" + escapeHtml(s.hint) + '</small></h2>' +
+      '<span class="badge" aria-label="' + col.length + ' tasks">' + col.length + "</span></div>" +
+      '<div class="cards">' + (col.length ? col.map(renderCard).join("") : '<p class="empty">No tasks</p>') + "</div></section>";
+  }).join("");
+  renderSummary();
+}
+
+/* =====================================================================
+   ACTIONS
+   ===================================================================== */
+function addTask(data) {
+  const task = {
+    id: nextTaskId(), title: data.title, description: data.description, project: data.project,
+    category: data.category, assignee: data.assignee, priority: data.priority,
+    dueDate: data.dueDate, status: data.status
+  };
+  state.tasks.push(task);
+  renderBoard();
+  return task;
+}
+
+function moveTask(id, status) {
+  const task = state.tasks.find(function (t) { return t.id === id; });
+  if (!task || task.status === status) { renderBoard(); return; }
+  task.status = status;
+  renderBoard();
+  showToast(id + " moved to " + status);
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+  pendingDeleteId = null;
+  renderBoard();
+}
+
+/* =====================================================================
+   TOASTS
+   ===================================================================== */
+function showToast(message, type) {
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "warn" ? " warn" : "");
+  el.textContent = message; // textContent: safe by construction
+  $("toasts").appendChild(el);
+  setTimeout(function () { el.remove(); }, type === "warn" ? 6000 : 3500);
+}
+
+/* =====================================================================
+   FORMSUBMIT NOTIFICATION
+   ===================================================================== */
+async function notifyNewTask(task) {
+  const res = await fetch(FORMSUBMIT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      _subject: SUBJECT_PREFIX + " New task " + task.id + ": " + task.title,
+      _template: "table",
+      _captcha: "false",
+      "Task ID": task.id,
+      Title: task.title,
+      Description: task.description,
+      Project: task.project,
+      Category: task.category,
+      Assignee: task.assignee,
+      Priority: task.priority,
+      "Due Date": task.dueDate,
+      Status: task.status,
+      "Submitted At": new Date().toISOString()
+    })
+  });
+  if (!res.ok) throw new Error("FormSubmit failed: " + res.status);
+  return res.json();
+}
+
+/* =====================================================================
+   FORM: validation, modal, submit
+   ===================================================================== */
+const FIELD_IDS = ["title", "description", "assignee", "dueDate"];
+
+function setError(field, message) {
+  $("err-" + field).textContent = message || "";
+  if (message) { $(field).setAttribute("aria-invalid", "true"); } else { $(field).removeAttribute("aria-invalid"); }
+}
+
+function readForm() {
+  return {
+    title: $("title").value.trim(), description: $("description").value.trim(),
+    project: $("project").value, category: $("category").value,
+    assignee: $("assignee").value.trim(), priority: $("priority").value,
+    dueDate: $("dueDate").value, status: $("status").value
+  };
+}
+
+function validateForm(d) {
+  const errors = {};
+  if (!d.title) errors.title = "Task title is required.";
+  else if (d.title.length > 80) errors.title = "Title must be 80 characters or fewer.";
+  if (d.description.length > 500) errors.description = "Description must be 500 characters or fewer.";
+  if (!d.assignee) errors.assignee = "Assignee is required.";
+  if (!d.dueDate) errors.dueDate = "Due date is required.";
+  else if (d.dueDate < todayISO()) errors.dueDate = "Due date must not be in the past.";
+  FIELD_IDS.forEach(function (f) { setError(f, errors[f]); });
+  const firstBad = FIELD_IDS.find(function (f) { return errors[f]; });
+  if (firstBad) $(firstBad).focus();
+  return !firstBad;
+}
+
+function resetForm() {
+  $("taskForm").reset();
+  $("priority").value = "Medium";
+  $("status").value = "Backlog";
+  $("descCount").textContent = "0 / 500";
+  FIELD_IDS.forEach(function (f) { setError(f, ""); });
+}
+
+let lastFocus = null;
+function openModal() {
+  lastFocus = document.activeElement;
+  $("dueDate").min = todayISO();
+  $("overlay").hidden = false;
+  $("title").focus();
+}
+function closeModal() {
+  $("overlay").hidden = true;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+  const data = readForm();
+  if (!validateForm(data)) return;
+
+  const btn = $("submitBtn");
+  btn.disabled = true;
+  btn.firstElementChild.textContent = "Sending…";
+
+  // Optimistic UI: card appears right away, network call runs in parallel.
+  const task = addTask(data);
+  resetForm();
+  closeModal();
+  showToast("Mission " + task.id + " added to the board");
+
+  try {
+    await notifyNewTask(task);
+  } catch (err) {
+    showToast("Card added locally — email notification failed", "warn");
+  } finally {
+    btn.disabled = false;
+    btn.firstElementChild.textContent = "Add Mission";
+  }
+}
+
+/* =====================================================================
+   EVENT WIRING
+   ===================================================================== */
+function fillSelect(id, values, firstLabel) {
+  const opts = (firstLabel ? ['<option value="">' + escapeHtml(firstLabel) + "</option>"] : []).concat(
+    values.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + "</option>"; }));
+  $(id).innerHTML = opts.join("");
+}
+
+function wireBoardEvents() {
+  const board = $("board");
+
+  board.addEventListener("click", function (e) {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const id = btn.dataset.id, action = btn.dataset.action;
+    if (action === "delete") { pendingDeleteId = id; renderBoard(); }
+    else if (action === "delete-no") { pendingDeleteId = null; renderBoard(); }
+    else if (action === "delete-yes") { deleteTask(id); showToast(id + " deleted"); }
+  });
+
+  board.addEventListener("change", function (e) {
+    const sel = e.target.closest('select[data-action="move"]');
+    if (sel) moveTask(sel.dataset.id, sel.value);
+  });
+
+  // Native HTML5 drag and drop
+  board.addEventListener("dragstart", function (e) {
+    const card = e.target.closest(".card");
+    if (!card) return;
+    draggedId = card.dataset.id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", draggedId);
+    card.classList.add("dragging");
+  });
+  board.addEventListener("dragend", function () {
+    draggedId = null;
+    board.querySelectorAll(".dragging, .drop-target").forEach(function (el) { el.classList.remove("dragging", "drop-target"); });
+  });
+  board.addEventListener("dragover", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    board.querySelectorAll(".drop-target").forEach(function (el) { if (el !== col) el.classList.remove("drop-target"); });
+    col.classList.add("drop-target");
+  });
+  board.addEventListener("dragleave", function (e) {
+    const col = e.target.closest(".column");
+    if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop-target");
+  });
+  board.addEventListener("drop", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    const id = draggedId;
+    draggedId = null;
+    moveTask(id, col.dataset.status);
+  });
+}
+
+function init() {
+  state.tasks = seedTasks();
+
+  fillSelect("fProject", PROJECTS, "All projects");
+  fillSelect("fPriority", PRIORITIES, "All priorities");
+  fillSelect("project", PROJECTS);
+  fillSelect("category", CATEGORIES);
+  fillSelect("priority", PRIORITIES);
+  fillSelect("status", STATUSES.map(function (s) { return s.name; }));
+  $("priority").value = "Medium";
+
+  $("fProject").addEventListener("change", function (e) { state.filters.project = e.target.value; renderBoard(); });
+  $("fPriority").addEventListener("change", function (e) { state.filters.priority = e.target.value; renderBoard(); });
+  $("fAssignee").addEventListener("input", function (e) { state.filters.assignee = e.target.value; renderBoard(); });
+  $("clearFilters").addEventListener("click", function () {
+    state.filters = { project: "", assignee: "", priority: "" };
+    $("fProject").value = ""; $("fPriority").value = ""; $("fAssignee").value = "";
+    renderBoard();
+  });
+
+  $("openAdd").addEventListener("click", openModal);
+  $("closeAdd").addEventListener("click", closeModal);
+  $("cancelAdd").addEventListener("click", closeModal);
+  $("overlay").addEventListener("mousedown", function (e) { if (e.target === $("overlay")) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("overlay").hidden) closeModal(); });
+  $("description").addEventListener("input", function (e) { $("descCount").textContent = e.target.value.length + " / 500"; });
+  $("taskForm").addEventListener("submit", handleSubmit);
+
+  wireBoardEvents();
+  renderBoard();
+}
+
+init();
+</script>
+</body>
+</html>
