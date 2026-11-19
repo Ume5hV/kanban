@@ -35,6 +35,13 @@ Scan every file that would be uploaded (tracked, staged and untracked, minus `.g
 - Cover: what the project is, a feature list, how to run it, the project's configuration (for example the one setting to change), known limits, the live Pages link (added in step 5) and the licence if one exists.
 - Base it on the actual code and `CLAUDE.md`. Do not invent features, badges or commands.
 
+## 3b. Screenshot with Playwright MCP (README evidence)
+- Needs the project's `playwright` MCP server (`.mcp.json`) and Google Chrome. If its `browser_*` tools are not available, or Chrome is missing (`npx playwright install chrome`), say so and ask the user before falling back to another browser (for example headless Brave: `--headless=new --window-size=1440,900 --screenshot=docs/screenshot.png <url>`). If tools are not available, tell the user to restart Claude Code in this folder and approve the server, and list this step as not done. Do not substitute another browser tool without asking.
+- Use the live Pages URL if the site is already deployed. On a first publish, serve the folder locally (`python3 -m http.server 8765`) and use http://localhost:8765/, then take the live screenshot again after step 5.
+- With Playwright MCP: `browser_navigate` to the URL, `browser_resize` to about 1440x900, wait for the page to render, then `browser_take_screenshot` (full page when the page is short; otherwise the main view) and save it as `docs/screenshot.png`. Look at it to confirm the page rendered and that no sensitive data is visible.
+- If the user named a Word or other document to paste the screenshot into, insert it there as well, at the place they named, and never upload that document to GitHub unless asked (assessment and personal documents often hold IDs). Add it to `.gitignore` if it sits in the project folder.
+- Embed it in `README.md` under a "Screenshot" heading with alt text, for example `![IT PMO Kanban board](docs/screenshot.png)`. Commit `docs/screenshot.png` with the README.
+
 ## 4. Repo About section
 - Set the description and topics with `gh repo edit <owner>/<repo> --description "<one line>" --add-topic <topic>`.
 - Leave the homepage blank until step 5 gives the Pages URL.

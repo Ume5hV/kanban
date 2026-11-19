@@ -4,6 +4,10 @@ A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML
 
 **Live demo:** https://ume5hv.github.io/kanban/
 
+## Screenshot
+
+![IT PMO Kanban board](docs/screenshot.png)
+
 ## Features
 
 - Four columns: Backlog, In Progress, Blocked and Done.
