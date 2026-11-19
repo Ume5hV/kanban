@@ -8,3 +8,4 @@ node_modules/
 
 # Assessment documents (may contain personal IDs)
 PP Assessment*.docx
+.playwright-mcp/
