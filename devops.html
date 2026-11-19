@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Control Plane</title>
+<style>
+/* ============ Design tokens: OLED terminal, run-green accent ============ */
+:root {
+  --bg: #070b14;
+  --bg-2: #0d1424;
+  --surface: #111a2e;
+  --card: #152038;
+  --line: #243456;
+  --ink: #e6edf7;
+  --muted: #8fa1c2;
+  --green: #22c55e;
+  --green-dim: #14532d;
+  --cyan: #22d3ee;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --red-deep: #7f1d1d;
+  --violet: #a78bfa;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --radius: 6px;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: var(--font); color: var(--ink); font-size: 14px; line-height: 1.45; min-height: 100vh;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(34,211,238,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3 { font-family: var(--mono); }
+
+/* ============ Header: terminal prompt + CI pipeline strip ============ */
+.app-header {
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--s3) var(--s5); align-items: center;
+  padding: var(--s4) var(--s5); background: linear-gradient(180deg, var(--bg-2), var(--bg));
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: var(--s3); }
+.logo { width: 38px; height: 38px; flex: none; }
+.wordmark { font-family: var(--mono); font-weight: 800; font-size: 22px; letter-spacing: .02em; color: #fff; }
+.wordmark span { color: var(--green); }
+.prompt { margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--muted); }
+.prompt b { color: var(--green); font-weight: 700; }
+.prompt .typed { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; color: var(--ink); animation: typing 2.4s steps(26, end) .3s both; }
+.prompt .cursor { display: inline-block; width: 8px; height: 15px; margin-left: 2px; background: var(--green); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+.pipeline { grid-column: 1 / -1; display: flex; align-items: center; gap: 0; margin: 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 12px; overflow-x: auto; }
+.pipeline li { display: flex; align-items: center; gap: var(--s2); color: var(--muted); white-space: nowrap; }
+.pipeline .node { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--green); background: var(--green); box-shadow: 0 0 0 0 rgba(34,197,94,.6); }
+.pipeline .link { flex: 1 1 24px; min-width: 24px; height: 2px; margin: 0 var(--s2); background: repeating-linear-gradient(90deg, var(--green) 0 8px, transparent 8px 14px); background-size: 14px 2px; animation: flow 1s linear infinite; }
+.pipeline li.active { color: var(--ink); }
+.pipeline li.active .node { background: var(--bg); animation: pulse 1.6s ease-out infinite; }
+.pipeline li.pending .node { border-color: var(--line); background: transparent; }
+.pipeline li.pending { opacity: .7; }
+.pipeline li:last-child { flex: none; }
+.pipeline li.stage { flex: none; }
+.pipeline li.gap { flex: 1 1 24px; }
+
+.summary { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
+.summary li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s1) var(--s3); white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.summary strong { font-size: 18px; color: #fff; margin-right: 4px; }
+.summary .overdue-stat { border-color: var(--red); color: var(--red); background: rgba(127,29,29,.35); }
+.summary .overdue-stat strong { color: var(--red); }
+.btn { border: 1px solid var(--green); background: var(--green); color: #04130a; padding: var(--s2) var(--s4); border-radius: var(--radius); font-family: var(--mono); font-weight: 700; font-size: 13px; transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.btn:hover { background: #4ade80; box-shadow: 0 0 18px rgba(34,197,94,.45); transform: translateY(-1px); }
+.btn[disabled] { opacity: .65; cursor: progress; transform: none; box-shadow: none; }
+.btn.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.secondary:hover { background: var(--surface); border-color: var(--cyan); box-shadow: none; }
+
+/* ============ Main / filters ============ */
+main { padding: var(--s5) var(--s5) var(--s6); max-width: 1500px; margin: 0 auto; }
+.note { color: var(--muted); font-family: var(--mono); font-size: 12px; margin: 0 0 var(--s3); }
+.note::before { content: "# "; color: var(--green); }
+.filters { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: flex-end; background: var(--surface); padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: var(--s5); }
+.filters label, .field label { display: block; font-family: var(--mono); font-weight: 600; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: var(--s1); color: var(--cyan); }
+.filters select, .filters input, .field input, .field select, .field textarea { width: 100%; min-width: 150px; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
+.filters select:hover, .filters input:hover, .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--cyan); }
+::placeholder { color: #5f7196; }
+
+/* ============ Board: each column is a pipeline stage ============ */
+.board { display: flex; gap: var(--s4); align-items: flex-start; }
+.column { flex: 1 1 0; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s3); min-height: 220px; transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease; }
+.column.drop-target { border-color: var(--cyan); background: var(--bg-2); box-shadow: 0 0 0 1px var(--cyan), 0 0 26px rgba(34,211,238,.2); }
+.column-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); margin-bottom: var(--s3); }
+.column-header h2 { margin: 0; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: #fff; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.column-header h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.column[data-status="In Progress"] .column-header h2::before { background: var(--cyan); animation: pulse-cyan 1.6s ease-out infinite; }
+.column[data-status="Blocked"] .column-header h2::before { background: var(--red); animation: pulse-red 1.4s ease-out infinite; }
+.column[data-status="Done"] .column-header h2::before { background: var(--green); }
+.column-header small { flex-basis: 100%; font-family: var(--font); color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.badge { background: var(--bg); border: 1px solid var(--line); color: var(--green); border-radius: var(--radius); min-width: 28px; text-align: center; padding: 1px var(--s2); font-family: var(--mono); font-weight: 700; }
+.cards { display: flex; flex-direction: column; gap: var(--s3); min-height: 60px; }
+.empty { color: var(--muted); font-family: var(--mono); text-align: center; padding: var(--s4) 0; }
+
+.card {
+  position: relative; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--muted);
+  border-radius: var(--radius); padding: var(--s3); cursor: grab;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  animation: rise .5s ease both;
+}
+.cards .card:nth-child(2) { animation-delay: .08s; }
+.cards .card:nth-child(3) { animation-delay: .16s; }
+.cards .card:nth-child(4) { animation-delay: .24s; }
+.card:hover { transform: translateY(-2px); border-color: var(--cyan); box-shadow: 0 8px 22px rgba(0,0,0,.5); }
+.card.dragging { opacity: .45; }
+.card.p-critical { border-left-color: var(--red); }
+.card.p-high { border-left-color: var(--amber); }
+.card.p-medium { border-left-color: var(--cyan); }
+.card.p-low { border-left-color: var(--muted); }
+.column[data-status="In Progress"] .card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: scan 1.8s ease-in-out infinite; }
+.card-top { display: flex; justify-content: space-between; gap: var(--s2); align-items: center; }
+.task-id { font-family: var(--mono); font-size: 11px; color: var(--cyan); }
+.card h3 { margin: var(--s1) 0 var(--s2); font-size: 14px; line-height: 1.3; font-weight: 600; color: #fff; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: 12px; margin: 2px 0; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); margin: var(--s2) 0; align-items: center; }
+.pill, .tag, .overdue { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 2px var(--s2); border-radius: 3px; text-transform: uppercase; letter-spacing: .05em; }
+.pill.critical { background: var(--red-deep); color: #fecaca; border: 1px solid var(--red); }
+.pill.high { background: rgba(251,191,36,.15); color: var(--amber); border: 1px solid var(--amber); }
+.pill.medium { background: rgba(34,211,238,.12); color: var(--cyan); border: 1px solid var(--cyan); }
+.pill.low { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tag { background: transparent; color: var(--violet); border: 1px solid #4c3f8a; }
+.overdue { background: var(--red); color: #1a0505; border: 1px solid var(--red); animation: blink-soft 2s ease-in-out infinite; }
+.card-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-top: var(--s2); }
+.card-actions label { font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; gap: var(--s1); align-items: center; }
+.card-actions select { padding: 2px var(--s1); border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 11px; max-width: 110px; }
+.icon-btn { border: 1px solid var(--line); background: var(--bg); border-radius: 3px; width: 28px; height: 28px; line-height: 1; font-size: 16px; color: var(--muted); transition: color .2s ease, border-color .2s ease; }
+.icon-btn:hover { color: var(--red); border-color: var(--red); }
+.confirm { display: flex; gap: var(--s1); align-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink); }
+.confirm button { padding: 2px var(--s2); border-radius: 3px; border: 1px solid var(--line); background: var(--bg); }
+.confirm .yes { background: var(--red-deep); border-color: var(--red); color: #fff; }
+
+/* ============ Trending news ============ */
+.news { margin-top: var(--s6); }
+.news-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s3); margin-bottom: var(--s3); }
+.news-head h2 { margin: 0; font-size: 18px; color: #fff; letter-spacing: .04em; text-transform: uppercase; }
+.news-head h2::before { content: "$ "; color: var(--green); }
+.news-head p { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.topics { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s4); padding: 0; list-style: none; }
+.topics li { font-family: var(--mono); font-size: 11px; color: var(--green); border: 1px solid var(--green-dim); background: rgba(20,83,45,.25); padding: 2px var(--s3); border-radius: 999px; }
+.news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s3); }
+.news-item { display: flex; flex-direction: column; gap: var(--s2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s3) var(--s4); text-decoration: none; color: inherit; transition: transform .2s ease, border-color .2s ease; animation: rise .5s ease both; }
+.news-item:nth-child(2n) { animation-delay: .06s; }
+.news-item:nth-child(3n) { animation-delay: .12s; }
+.news-item:hover { transform: translateY(-3px); border-color: var(--green); }
+.news-meta { display: flex; justify-content: space-between; gap: var(--s2); font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.news-source { color: var(--cyan); }
+.news-item h3 { margin: 0; font-size: 14px; line-height: 1.35; color: #fff; font-weight: 600; }
+.news-item .go { margin-top: auto; font-family: var(--mono); font-size: 11px; color: var(--green); }
+.news-item:hover .go { text-decoration: underline; }
+
+/* ============ Modal / form ============ */
+.overlay { position: fixed; inset: 0; background: rgba(2,4,10,.78); backdrop-filter: blur(3px); display: flex; align-items: flex-start; justify-content: center; padding: var(--s5) var(--s3); overflow-y: auto; z-index: 10; }
+.overlay[hidden] { display: none; }
+.modal { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); width: 100%; max-width: 560px; padding: var(--s5); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3); }
+.modal-head h2 { margin: 0; font-size: 18px; color: #fff; }
+.modal-head h2::before { content: "$ "; color: var(--green); }
+.field { margin-bottom: var(--s3); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.field textarea { min-height: 80px; resize: vertical; }
+.field .error { color: var(--red); font-size: 12px; margin: var(--s1) 0 0; min-height: 0; }
+.field input[aria-invalid="true"], .field select[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--red); background: #2a0f14; }
+.counter { font-size: 11px; color: var(--muted); text-align: right; font-family: var(--mono); }
+.form-actions { display: flex; justify-content: flex-end; gap: var(--s3); margin-top: var(--s4); }
+
+/* ============ Toasts ============ */
+.toasts { position: fixed; right: var(--s4); bottom: var(--s4); display: flex; flex-direction: column; gap: var(--s2); z-index: 20; max-width: 340px; }
+.toast { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 12px; padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); border-left: 4px solid var(--green); box-shadow: 0 8px 24px rgba(0,0,0,.55); animation: rise .3s ease both; }
+.toast.warn { border-left-color: var(--amber); }
+
+.site-footer { text-align: center; color: var(--muted); font-family: var(--mono); font-size: 11px; padding: var(--s4) var(--s4) var(--s6); }
+
+/* ============ Animations ============ */
+@keyframes typing { from { width: 0; } to { width: 26ch; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes blink-soft { 50% { opacity: .55; } }
+@keyframes flow { to { background-position: 14px 0; } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.6); } 70%, 100% { box-shadow: 0 0 0 9px rgba(34,197,94,0); } }
+@keyframes pulse-cyan { 0% { box-shadow: 0 0 0 0 rgba(34,211,238,.6); } 70%, 100% { box-shadow: 0 0 0 8px rgba(34,211,238,0); } }
+@keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(248,113,113,.6); } 70%, 100% { box-shadow: 0 0 0 8px rgba(248,113,113,0); } }
+@keyframes scan { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ============ Responsive + motion ============ */
+@media (max-width: 767px) {
+  .app-header { grid-template-columns: 1fr; }
+  .board { flex-direction: column; align-items: stretch; }
+  .column { width: 100%; }
+  .field-row { grid-template-columns: 1fr; }
+  main, .app-header { padding-left: var(--s3); padding-right: var(--s3); }
+  .prompt .typed { max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none; transition: none; }
+  .prompt .typed { width: auto; }
+  .card:hover, .news-item:hover, .btn:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Header with live summary ============ -->
+<header class="app-header">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 38 38" aria-hidden="true" focusable="false">
+      <rect x="1.5" y="1.5" width="35" height="35" rx="8" fill="#0d1424" stroke="#22c55e" stroke-width="2"/>
+      <path d="M11 13 L18 19 L11 25" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 26 H28" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <span class="wordmark" aria-label="IT PMO">IT<span>/</span>PMO</span>
+  </div>
+  <h1 class="prompt"><b>$</b> <span class="typed">./pipeline-control-plane</span><span class="cursor" aria-hidden="true"></span></h1>
+  <button class="btn" id="openAdd" type="button">+ new task</button>
+  <ol class="pipeline" aria-hidden="true">
+    <li class="stage"><span class="node"></span>commit</li><li class="gap"><span class="link"></span></li>
+    <li class="stage"><span class="node"></span>build</li><li class="gap"><span class="link"></span></li>
+    <li class="stage"><span class="node"></span>test</li><li class="gap"><span class="link"></span></li>
+    <li class="stage active"><span class="node"></span>scan</li><li class="gap"><span class="link"></span></li>
+    <li class="stage pending"><span class="node"></span>deploy</li>
+  </ol>
+  <ul class="summary" id="summary" aria-label="Board summary"></ul>
+</header>
+
+<main>
+  <p class="note">demo / training tool: board data lives in memory only. refreshing the page resets it to the seeded demo tasks.</p>
+
+  <!-- ============ Filter bar ============ -->
+  <section class="filters" aria-label="Filters">
+    <div>
+      <label for="fProject">Project</label>
+      <select id="fProject"></select>
+    </div>
+    <div>
+      <label for="fAssignee">Owner contains</label>
+      <input id="fAssignee" type="text" placeholder="e.g. Priya">
+    </div>
+    <div>
+      <label for="fPriority">Priority</label>
+      <select id="fPriority"></select>
+    </div>
+    <button class="btn secondary" id="clearFilters" type="button">Clear filters</button>
+  </section>
+
+  <!-- ============ Kanban board (rendered by renderBoard) ============ -->
+  <section class="board" id="board" aria-label="Kanban board"></section>
+
+  <!-- ============ Trending DevOps news (static headlines with source links) ============ -->
+  <section class="news" aria-labelledby="newsTitle">
+    <div class="news-head">
+      <h2 id="newsTitle">trending devops news</h2>
+      <p>headlines as of 19 Nov 2026, linked to the original sources</p>
+    </div>
+    <ul class="topics" aria-label="Trending topics">
+      <li>AI in the pipeline</li><li>Platform engineering</li><li>Kubernetes policy</li><li>Observability</li><li>Secrets &amp; supply chain</li>
+    </ul>
+    <div class="news-grid" id="news"></div>
+  </section>
+</main>
+
+<footer class="site-footer">demo build &middot; news links open the publisher's site in a new tab</footer>
+
+<!-- ============ Add Task modal ============ -->
+<div class="overlay" id="overlay" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">new task</h2>
+      <button class="icon-btn" id="closeAdd" type="button" aria-label="Close add task form">&times;</button>
+    </div>
+    <form id="taskForm" novalidate>
+      <div class="field">
+        <label for="title">Task Title *</label>
+        <input id="title" name="title" type="text" maxlength="80" aria-describedby="err-title">
+        <p class="error" id="err-title" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" maxlength="500" aria-describedby="err-description"></textarea>
+        <div class="counter" id="descCount">0 / 500</div>
+        <p class="error" id="err-description" role="alert"></p>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="project">Project / Workstream *</label>
+          <select id="project" name="project"></select>
+        </div>
+        <div class="field">
+          <label for="category">Category *</label>
+          <select id="category" name="category"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="assignee">Owner *</label>
+          <input id="assignee" name="assignee" type="text" aria-describedby="err-assignee">
+          <p class="error" id="err-assignee" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority"></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="dueDate">Due Date *</label>
+          <input id="dueDate" name="dueDate" type="date" aria-describedby="err-dueDate">
+          <p class="error" id="err-dueDate" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status"></select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="button" id="cancelAdd">Cancel</button>
+        <button class="btn" type="submit" id="submitBtn">create task</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<!-- Toast region -->
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — edit values here only
+   ===================================================================== */
+/*
+  FormSubmit one-time activation (in the HTML comment spirit):
+  The FIRST submission to a new address makes FormSubmit send a confirmation
+  email to that address. Submissions are only delivered after the link in
+  that email is clicked. Until then, requests may fail or be held.
+*/
+const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
+const ID_PREFIX = "OPS-";
+const SUBJECT_PREFIX = "[Pipeline Control Plane]";
+
+const STATUSES = [
+  { name: "Backlog", hint: "queued: logged, not yet scheduled" },
+  { name: "In Progress", hint: "running: actively being worked" },
+  { name: "Blocked", hint: "failed: waiting on a dependency or approval" },
+  { name: "Done", hint: "deployed: completed / closed" }
+];
+const PROJECTS = ["CI/CD Platform", "Kubernetes Platform", "Observability Stack", "Developer Portal", "Cloud Landing Zone", "Security & Compliance"];
+const CATEGORIES = ["Pipeline", "Infrastructure", "Security", "Observability", "Reliability", "Cost"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+/* =====================================================================
+   STATE — single source of truth (in memory only, no storage APIs)
+   ===================================================================== */
+const state = {
+  tasks: [],
+  filters: { project: "", assignee: "", priority: "" }
+};
+let idCounter = 0;          // incremented for every new task ID
+let pendingDeleteId = null; // which card is showing the inline "Delete? Yes / No"
+let draggedId = null;
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function pad2(n) { return String(n).padStart(2, "0"); }
+function toISO(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+function todayISO() { return toISO(new Date()); }
+function offsetISO(days) { const d = new Date(); d.setDate(d.getDate() + days); return toISO(d); }
+function isOverdue(task) { return task.status !== "Done" && task.dueDate < todayISO(); }
+function formatDate(iso) {
+  const p = iso.split("-");
+  const d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function slug(s) { return s.toLowerCase().replace(/\s+/g, "-"); }
+function nextTaskId() { idCounter += 1; return ID_PREFIX + String(idCounter).padStart(4, "0"); }
+function $(id) { return document.getElementById(id); }
+
+/* =====================================================================
+   SEED DATA
+   ===================================================================== */
+function seedTasks() {
+  const seed = [
+    ["Migrate Jenkins pipelines to GitHub Actions", "Port the remaining build and release pipelines to reusable workflows with OIDC cloud auth.", "CI/CD Platform", "Pipeline", "Priya Nair", "High", 21, "In Progress"],
+    ["Rotate leaked CI service-account token", "Revoke and rotate the exposed token, then enable push protection and secret scanning on all repos.", "Security & Compliance", "Security", "Daniel Tan", "Critical", -3, "In Progress"],
+    ["Roll out Kyverno admission policies to prod clusters", "Move the audit-mode policies to enforce after the CEL cost review.", "Kubernetes Platform", "Security", "Mei Lin Chong", "High", 5, "Blocked"],
+    ["Add SLO dashboards for the payments API", "Define error-budget SLOs and burn-rate alerts in the observability stack.", "Observability Stack", "Observability", "Arun Pillai", "Medium", 30, "Backlog"],
+    ["Publish golden-path templates in the developer portal", "Self-service service scaffolds with CI, tracing and policy checks built in.", "Developer Portal", "Pipeline", "Sofia Rahman", "Medium", 45, "Backlog"],
+    ["Terraform state migration to the new landing zone", "Split and move remote state per environment with locked, versioned backends.", "Cloud Landing Zone", "Infrastructure", "Kenji Ong", "High", -6, "Blocked"],
+    ["Cut idle non-prod cloud spend", "Schedule shutdowns and right-size dev and test clusters; report weekly savings.", "Cloud Landing Zone", "Cost", "Hannah Lim", "Low", 14, "Backlog"],
+    ["Decommission the legacy Jenkins controller", "Archive job history and power off the old controller after cutover.", "CI/CD Platform", "Pipeline", "Ravi Menon", "Medium", -10, "Done"]
+  ];
+  return seed.map(function (s) {
+    return { id: nextTaskId(), title: s[0], description: s[1], project: s[2], category: s[3], assignee: s[4], priority: s[5], dueDate: offsetISO(s[6]), status: s[7] };
+  });
+}
+
+/* =====================================================================
+   FILTERING
+   ===================================================================== */
+function applyFilters(tasks) {
+  const f = state.filters;
+  const needle = f.assignee.trim().toLowerCase();
+  return tasks.filter(function (t) {
+    return (!f.project || t.project === f.project) &&
+           (!f.priority || t.priority === f.priority) &&
+           (!needle || t.assignee.toLowerCase().indexOf(needle) !== -1);
+  });
+}
+
+/* =====================================================================
+   RENDERING — the only place card DOM is produced
+   ===================================================================== */
+function renderCard(task) {
+  const overdue = isOverdue(task);
+  const confirming = pendingDeleteId === task.id;
+  const moveOptions = STATUSES.map(function (s) {
+    return '<option value="' + escapeHtml(s.name) + '"' + (s.name === task.status ? " selected" : "") + ">" + escapeHtml(s.name) + "</option>";
+  }).join("");
+  const actions = confirming
+    ? '<span class="confirm" role="group" aria-label="Confirm delete">Delete? ' +
+      '<button type="button" class="yes" data-action="delete-yes" data-id="' + escapeHtml(task.id) + '">Yes</button>' +
+      '<button type="button" data-action="delete-no" data-id="' + escapeHtml(task.id) + '">No</button></span>'
+    : '<button type="button" class="icon-btn" data-action="delete" data-id="' + escapeHtml(task.id) + '" aria-label="Delete task ' + escapeHtml(task.id) + '">&times;</button>';
+  return '<article class="card p-' + slug(task.priority) + '" draggable="true" data-id="' + escapeHtml(task.id) + '">' +
+    '<div class="card-top"><span class="task-id">' + escapeHtml(task.id) + '</span>' +
+    '<span class="pill ' + slug(task.priority) + '">' + escapeHtml(task.priority) + '</span></div>' +
+    '<h3>' + escapeHtml(task.title) + '</h3>' +
+    '<p class="meta">&#9638; ' + escapeHtml(task.project) + '</p>' +
+    '<p class="meta">&#9786; ' + escapeHtml(task.assignee) + '</p>' +
+    '<p class="meta">&#9719; Due ' + escapeHtml(formatDate(task.dueDate)) + '</p>' +
+    '<div class="chips"><span class="tag">' + escapeHtml(task.category) + '</span>' +
+    (overdue ? '<span class="overdue">Overdue</span>' : "") + '</div>' +
+    '<div class="card-actions">' +
+    '<label>Move &#9656; <select data-action="move" data-id="' + escapeHtml(task.id) + '" aria-label="Move ' + escapeHtml(task.id) + ' to column">' + moveOptions + '</select></label>' +
+    actions + '</div></article>';
+}
+
+function renderSummary() {
+  const tasks = state.tasks;
+  let html = "<li><strong>" + tasks.length + "</strong> total</li>";
+  STATUSES.forEach(function (s) {
+    html += "<li><strong>" + tasks.filter(function (t) { return t.status === s.name; }).length + "</strong> " + escapeHtml(s.name) + "</li>";
+  });
+  html += '<li class="overdue-stat"><strong>' + tasks.filter(isOverdue).length + "</strong> Overdue</li>";
+  $("summary").innerHTML = html;
+}
+
+function renderBoard() {
+  const visible = applyFilters(state.tasks);
+  $("board").innerHTML = STATUSES.map(function (s) {
+    const col = visible.filter(function (t) { return t.status === s.name; });
+    return '<section class="column" data-status="' + escapeHtml(s.name) + '" aria-label="' + escapeHtml(s.name) + ' column">' +
+      '<div class="column-header"><h2>' + escapeHtml(s.name) + "<small>" + escapeHtml(s.hint) + '</small></h2>' +
+      '<span class="badge" aria-label="' + col.length + ' tasks">' + col.length + "</span></div>" +
+      '<div class="cards">' + (col.length ? col.map(renderCard).join("") : '<p class="empty">No tasks</p>') + "</div></section>";
+  }).join("");
+  renderSummary();
+}
+
+/* =====================================================================
+   TRENDING NEWS — static headlines (no network call). Edit this list to refresh.
+   ===================================================================== */
+const NEWS = [
+  {
+    "title": "Security risk assessments run automatically on GitHub Team",
+    "source": "GitHub Changelog",
+    "date": "2026-11-18",
+    "url": "https://github.blog/changelog/2026-11-18-security-risk-assessments-run-automatically-on-github-team"
+  },
+  {
+    "title": "Copilot code review: Adaptive effort, secret detection, and more",
+    "source": "GitHub Changelog",
+    "date": "2026-11-17",
+    "url": "https://github.blog/changelog/2026-11-17-copilot-code-review-adaptive-effort-secret-detection-and-more"
+  },
+  {
+    "title": "Customize GitHub Copilot for your team",
+    "source": "GitHub Changelog",
+    "date": "2026-11-18",
+    "url": "https://github.blog/changelog/2026-11-18-customize-github-copilot-for-your-team"
+  },
+  {
+    "title": "Optimizing Kubernetes admission control: Where Kyverno's CEL admission cost actually goes",
+    "source": "CNCF Blog",
+    "date": "2026-11-18",
+    "url": "https://www.cncf.io/blog/2026/11/18/optimizing-kubernetes-admission-control-where-kyvernos-cel-admission-cost-actually-goes/"
+  },
+  {
+    "title": "Is your OpenTelemetry pipeline becoming a performance bottleneck?",
+    "source": "CNCF Blog",
+    "date": "2026-11-17",
+    "url": "https://www.cncf.io/blog/2026/11/17/is-your-opentelemetry-pipeline-becoming-a-performance-bottleneck/"
+  },
+  {
+    "title": "Gang scheduling and topology-aware placement for AI training in Kubernetes",
+    "source": "CNCF Blog",
+    "date": "2026-11-12",
+    "url": "https://www.cncf.io/blog/2026/11/12/gang-scheduling-and-topology-aware-placement-for-ai-training-in-kubernetes/"
+  },
+  {
+    "title": "Platform engineering needs to become more human…and less",
+    "source": "CNCF Blog",
+    "date": "2026-11-11",
+    "url": "https://www.cncf.io/blog/2026/11/11/platform-engineering-needs-to-become-more-humanand-less/"
+  },
+  {
+    "title": "GitHub Copilot app, Microsoft Ignite releases",
+    "source": "GitHub Changelog",
+    "date": "2026-11-17",
+    "url": "https://github.blog/changelog/2026-11-17-github-copilot-app-microsoft-ignite-releases"
+  }
+];
+
+function renderNews() {
+  $("news").innerHTML = NEWS.map(function (n) {
+    return '<a class="news-item" href="' + escapeHtml(n.url) + '" target="_blank" rel="noopener noreferrer">' +
+      '<div class="news-meta"><span class="news-source">' + escapeHtml(n.source) + '</span><time datetime="' + escapeHtml(n.date) + '">' + escapeHtml(formatDate(n.date)) + '</time></div>' +
+      '<h3>' + escapeHtml(n.title) + '</h3><span class="go">read at source &rarr;</span></a>';
+  }).join("");
+}
+
+/* =====================================================================
+   ACTIONS
+   ===================================================================== */
+function addTask(data) {
+  const task = {
+    id: nextTaskId(), title: data.title, description: data.description, project: data.project,
+    category: data.category, assignee: data.assignee, priority: data.priority,
+    dueDate: data.dueDate, status: data.status
+  };
+  state.tasks.push(task);
+  renderBoard();
+  return task;
+}
+
+function moveTask(id, status) {
+  const task = state.tasks.find(function (t) { return t.id === id; });
+  if (!task || task.status === status) { renderBoard(); return; }
+  task.status = status;
+  renderBoard();
+  showToast(id + " moved to " + status);
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+  pendingDeleteId = null;
+  renderBoard();
+}
+
+/* =====================================================================
+   TOASTS
+   ===================================================================== */
+function showToast(message, type) {
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "warn" ? " warn" : "");
+  el.textContent = message; // textContent: safe by construction
+  $("toasts").appendChild(el);
+  setTimeout(function () { el.remove(); }, type === "warn" ? 6000 : 3500);
+}
+
+/* =====================================================================
+   FORMSUBMIT NOTIFICATION
+   ===================================================================== */
+async function notifyNewTask(task) {
+  const res = await fetch(FORMSUBMIT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      _subject: SUBJECT_PREFIX + " New task " + task.id + ": " + task.title,
+      _template: "table",
+      _captcha: "false",
+      "Task ID": task.id,
+      Title: task.title,
+      Description: task.description,
+      Project: task.project,
+      Category: task.category,
+      Assignee: task.assignee,
+      Priority: task.priority,
+      "Due Date": task.dueDate,
+      Status: task.status,
+      "Submitted At": new Date().toISOString()
+    })
+  });
+  if (!res.ok) throw new Error("FormSubmit failed: " + res.status);
+  return res.json();
+}
+
+/* =====================================================================
+   FORM: validation, modal, submit
+   ===================================================================== */
+const FIELD_IDS = ["title", "description", "assignee", "dueDate"];
+
+function setError(field, message) {
+  $("err-" + field).textContent = message || "";
+  if (message) { $(field).setAttribute("aria-invalid", "true"); } else { $(field).removeAttribute("aria-invalid"); }
+}
+
+function readForm() {
+  return {
+    title: $("title").value.trim(), description: $("description").value.trim(),
+    project: $("project").value, category: $("category").value,
+    assignee: $("assignee").value.trim(), priority: $("priority").value,
+    dueDate: $("dueDate").value, status: $("status").value
+  };
+}
+
+function validateForm(d) {
+  const errors = {};
+  if (!d.title) errors.title = "Task title is required.";
+  else if (d.title.length > 80) errors.title = "Title must be 80 characters or fewer.";
+  if (d.description.length > 500) errors.description = "Description must be 500 characters or fewer.";
+  if (!d.assignee) errors.assignee = "Assignee is required.";
+  if (!d.dueDate) errors.dueDate = "Due date is required.";
+  else if (d.dueDate < todayISO()) errors.dueDate = "Due date must not be in the past.";
+  FIELD_IDS.forEach(function (f) { setError(f, errors[f]); });
+  const firstBad = FIELD_IDS.find(function (f) { return errors[f]; });
+  if (firstBad) $(firstBad).focus();
+  return !firstBad;
+}
+
+function resetForm() {
+  $("taskForm").reset();
+  $("priority").value = "Medium";
+  $("status").value = "Backlog";
+  $("descCount").textContent = "0 / 500";
+  FIELD_IDS.forEach(function (f) { setError(f, ""); });
+}
+
+let lastFocus = null;
+function openModal() {
+  lastFocus = document.activeElement;
+  $("dueDate").min = todayISO();
+  $("overlay").hidden = false;
+  $("title").focus();
+}
+function closeModal() {
+  $("overlay").hidden = true;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+  const data = readForm();
+  if (!validateForm(data)) return;
+
+  const btn = $("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+
+  // Optimistic UI: card appears right away, network call runs in parallel.
+  const task = addTask(data);
+  resetForm();
+  closeModal();
+  showToast("Task " + task.id + " added to the board");
+
+  try {
+    await notifyNewTask(task);
+  } catch (err) {
+    showToast("Card added locally — email notification failed", "warn");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "create task";
+  }
+}
+
+/* =====================================================================
+   EVENT WIRING
+   ===================================================================== */
+function fillSelect(id, values, firstLabel) {
+  const opts = (firstLabel ? ['<option value="">' + escapeHtml(firstLabel) + "</option>"] : []).concat(
+    values.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + "</option>"; }));
+  $(id).innerHTML = opts.join("");
+}
+
+function wireBoardEvents() {
+  const board = $("board");
+
+  board.addEventListener("click", function (e) {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const id = btn.dataset.id, action = btn.dataset.action;
+    if (action === "delete") { pendingDeleteId = id; renderBoard(); }
+    else if (action === "delete-no") { pendingDeleteId = null; renderBoard(); }
+    else if (action === "delete-yes") { deleteTask(id); showToast(id + " deleted"); }
+  });
+
+  board.addEventListener("change", function (e) {
+    const sel = e.target.closest('select[data-action="move"]');
+    if (sel) moveTask(sel.dataset.id, sel.value);
+  });
+
+  // Native HTML5 drag and drop
+  board.addEventListener("dragstart", function (e) {
+    const card = e.target.closest(".card");
+    if (!card) return;
+    draggedId = card.dataset.id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", draggedId);
+    card.classList.add("dragging");
+  });
+  board.addEventListener("dragend", function () {
+    draggedId = null;
+    board.querySelectorAll(".dragging, .drop-target").forEach(function (el) { el.classList.remove("dragging", "drop-target"); });
+  });
+  board.addEventListener("dragover", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    board.querySelectorAll(".drop-target").forEach(function (el) { if (el !== col) el.classList.remove("drop-target"); });
+    col.classList.add("drop-target");
+  });
+  board.addEventListener("dragleave", function (e) {
+    const col = e.target.closest(".column");
+    if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop-target");
+  });
+  board.addEventListener("drop", function (e) {
+    const col = e.target.closest(".column");
+    if (!col || !draggedId) return;
+    e.preventDefault();
+    const id = draggedId;
+    draggedId = null;
+    moveTask(id, col.dataset.status);
+  });
+}
+
+function init() {
+  state.tasks = seedTasks();
+  renderNews();
+
+  fillSelect("fProject", PROJECTS, "All projects");
+  fillSelect("fPriority", PRIORITIES, "All priorities");
+  fillSelect("project", PROJECTS);
+  fillSelect("category", CATEGORIES);
+  fillSelect("priority", PRIORITIES);
+  fillSelect("status", STATUSES.map(function (s) { return s.name; }));
+  $("priority").value = "Medium";
+
+  $("fProject").addEventListener("change", function (e) { state.filters.project = e.target.value; renderBoard(); });
+  $("fPriority").addEventListener("change", function (e) { state.filters.priority = e.target.value; renderBoard(); });
+  $("fAssignee").addEventListener("input", function (e) { state.filters.assignee = e.target.value; renderBoard(); });
+  $("clearFilters").addEventListener("click", function () {
+    state.filters = { project: "", assignee: "", priority: "" };
+    $("fProject").value = ""; $("fPriority").value = ""; $("fAssignee").value = "";
+    renderBoard();
+  });
+
+  $("openAdd").addEventListener("click", openModal);
+  $("closeAdd").addEventListener("click", closeModal);
+  $("cancelAdd").addEventListener("click", closeModal);
+  $("overlay").addEventListener("mousedown", function (e) { if (e.target === $("overlay")) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("overlay").hidden) closeModal(); });
+  $("description").addEventListener("input", function (e) { $("descCount").textContent = e.target.value.length + " / 500"; });
+  $("taskForm").addEventListener("submit", handleSubmit);
+
+  wireBoardEvents();
+  renderBoard();
+}
+
+init();
+</script>
+</body>
+</html>

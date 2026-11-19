@@ -21,7 +21,7 @@ jobs:
         run: |
           test -s index.html
           mkdir -p _site
-          cp index.html dc.html _site/
+          cp index.html dc.html devops.html _site/
           cp -r docs _site/docs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'

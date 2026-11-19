@@ -4,6 +4,7 @@ A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML
 
 **Live demo:** https://ume5hv.github.io/kanban/
 **DC superhero version:** https://ume5hv.github.io/kanban/dc.html
+**DevOps version:** https://ume5hv.github.io/kanban/devops.html
 
 ## Screenshots
 
@@ -11,7 +12,13 @@ A single-file Kanban board for a fictitious bank's IT PMO, built with plain HTML
 |---|---|
 | ![IT PMO Kanban board, original corporate blue design](docs/screenshot.png) | ![Hall of Justice Board, DC superhero themed redesign](docs/screenshot-dc-live.png) |
 
-The redesign keeps all behaviour from the original. Only the styling, the wording and the demo data changed. It is a fan-made, original design with no official logos or artwork, and is not affiliated with DC or Warner Bros.
+### DevOps redesign (`devops.html`)
+
+![Pipeline Control Plane, DevOps themed redesign with animations and trending news](docs/screenshot-devops.png)
+
+A terminal-style "Pipeline Control Plane": an animated commit-to-deploy strip in the header, status lights per column, a scanning bar on running cards, and a "Trending DevOps news" section. The news is a static list of dated headlines linked to GitHub's changelog and the CNCF blog. Edit the `NEWS` array in `devops.html` to refresh it. Animations respect the reduced-motion setting.
+
+The DC redesign keeps all behaviour from the original. Only the styling, the wording and the demo data changed. It is a fan-made, original design with no official logos or artwork, and is not affiliated with DC or Warner Bros.
 
 ## Screenshot
 
